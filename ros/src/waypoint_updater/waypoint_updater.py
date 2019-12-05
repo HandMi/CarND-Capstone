@@ -3,9 +3,11 @@
 import rospy
 from geometry_msgs.msg import PoseStamped
 from styx_msgs.msg import Lane, Waypoint
+from std_msgs.msg import Int32
 from scipy.spatial import KDTree
 
 import math
+import numpy as np
 
 '''
 This node will publish waypoints from the car's current position to some `x` distance ahead.
@@ -22,7 +24,7 @@ as well as to verify your TL classifier.
 TODO (for Yousuf and Aaron): Stopline location for each traffic light.
 '''
 
-LOOKAHEAD_WPS = 200 # Number of waypoints we will publish. You can change this number
+LOOKAHEAD_WPS = 75 # Number of waypoints we will publish. You can change this number
 
 
 class WaypointUpdater(object):
@@ -31,6 +33,7 @@ class WaypointUpdater(object):
 
         rospy.Subscriber('/current_pose', PoseStamped, self.pose_cb)
         rospy.Subscriber('/base_waypoints', Lane, self.waypoints_cb)
+        rospy.Subscriber('/traffic_waypoint', Int32, self.traffic_cb)
 
         self.final_waypoints_pub = rospy.Publisher('final_waypoints', Lane, queue_size=1)
 
@@ -43,48 +46,51 @@ class WaypointUpdater(object):
 
 
     def loop(self):
-    	rate = rospy.Rate(50)
-    	while not rospy.is_shutdown():
-    		if self.pose and self.base_waypoints:
-    			# Get closest waypoint
-    			closest_waypoint_idx = self.get_closest_waypoint_idx()
-    			self.publish_waypoints(closest_waypoint_idx)
-    		rate.sleep()
+        rate = rospy.Rate(50)
+        while not rospy.is_shutdown():
+            if self.pose and self.base_waypoints:
+                # Get closest waypoint
+                closest_waypoint_idx = self.get_closest_waypoint_idx()
+                self.publish_waypoints(closest_waypoint_idx)
+            rate.sleep()
 
-    def get_closest_waypoint_id(self):
-    	x = self.pose.pose.position.x
-    	y = self.pose.pose.position.y
-    	closest_idx = self.waypoint_tree.query([x, y], 1)[1]
+    def get_closest_waypoint_idx(self):
+        x = self.pose.pose.position.x
+        y = self.pose.pose.position.y
+        closest_idx = self.waypoint_tree.query([x, y], 1)[1]
 
-    	# Check if closest is ahead or behind vehicle
-    	closest_coord = self.waypoints_2d[closest_idx]
-    	prev_coord =  self.waypoints_2d[closest_idx-1]
+        # Check if closest is ahead or behind vehicle
+        closest_coord = self.waypoints_2d[closest_idx]
+        prev_coord =  self.waypoints_2d[closest_idx-1]
 
-    	# Equation fo hyperplane through closest coordinates
-    	cl_vect = np.array(closest_coord)
-    	prev_vect = np.array(prev_coord)
-    	pos_vector = np.array([x, y])
+        # Equation fo hyperplane through closest coordinates
+        cl_vect = np.array(closest_coord)
+        prev_vect = np.array(prev_coord)
+        pos_vect = np.array([x, y])
 
-    	val = np.dot(cl_vect-prev_vect, pos_vect-cl_vect)
+        val = np.dot(cl_vect-prev_vect, pos_vect-cl_vect)
 
-    	if val > 0:
-    		closest_idx = (closest_idx + 1) % len(self.waypoints_2d)
-    	return closest_idx
+        if val > 0:
+            closest_idx = (closest_idx + 1) % len(self.waypoints_2d)
+        return closest_idx
 
     def publish_waypoints(self, closest_idx):
-    	lane = Lane()
-    	lane.header = self.base_waypoints.header
-    	lane.waypoints = self.base_waypoints.waypoints[closest_idx:closest_idx + LOOKAHEAD_WPS]
-    	self.final_waypoints_pub.publish(lane)
+        lane = Lane()
+        lane.header = self.base_waypoints.header
+        farthest_idx = closest_idx + LOOKAHEAD_WPS
+        lane.waypoints = self.base_waypoints.waypoints[closest_idx:farthest_idx]
+    #    for idx in range(LOOKAHEAD_WPS):
+        #    self.set_waypoint_velocity(lane.waypoints, closest_idx+idx, 10.0)
+        self.final_waypoints_pub.publish(lane)
 
     def pose_cb(self, msg):
-    	self.pose = msg
-
-    def waypoints_cb(self, waypoints):
-    	base_waypoints = waypoints
-    	if not self.waypoints_2d:
-    	    self.waypoints_2d = [[waypoint.pose.pose.position.x, waypoint.pose.pose.position.y] for waypoint in waypoints.waypoints]
-    	    self.waypoint_tree = KDTree(self.waypoints_2d)
+        self.pose = msg
+        
+    def waypoints_cb(self, msg):
+        self.base_waypoints = msg
+        if not self.waypoints_2d:
+            self.waypoints_2d = [[waypoint.pose.pose.position.x, waypoint.pose.pose.position.y] for waypoint in self.base_waypoints.waypoints]
+            self.waypoint_tree = KDTree(self.waypoints_2d)
 
     def traffic_cb(self, msg):
         # TODO: Callback for /traffic_waypoint message. Implement
