@@ -2,6 +2,8 @@ from styx_msgs.msg import TrafficLight
 import cv2
 import tensorflow as tf
 import numpy as np
+import rospy
+import yaml
 
 SCORE_THRESHOLD = 0.5
 
@@ -9,7 +11,12 @@ class TLClassifier(object):
     def __init__(self):
         self.sess = None
         self.graph = None
-        PATH_TO_SIM_GRAPH = r'models/ssd_inception_v2_coco_sim/frozen_inference_graph.pb'
+        self.config = yaml.load(rospy.get_param("/traffic_light_config"))
+        is_site = self.config['is_site']
+        if is_site == True:
+            PATH_TO_SIM_GRAPH = r'models/ssd_inception_v2_coco_real/frozen_inference_graph.pb'
+        else:
+            PATH_TO_SIM_GRAPH = r'models/ssd_inception_v2_coco_sim/frozen_inference_graph.pb'
         self.load_graph(PATH_TO_SIM_GRAPH)
         self.image_tensor = self.graph.get_tensor_by_name('image_tensor:0')
         self.detection_boxes = self.graph.get_tensor_by_name('detection_boxes:0')

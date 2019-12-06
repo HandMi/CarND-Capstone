@@ -23,7 +23,7 @@ as well as to verify your TL classifier.
 '''
 
 MAX_DECEL = .5
-LOOKAHEAD_WPS = 75 # Number of waypoints we will publish. You can change this number
+LOOKAHEAD_WPS = 100 # Number of waypoints we will publish. You can change this number
 
 
 class WaypointUpdater(object):
