@@ -2,7 +2,7 @@ from styx_msgs.msg import TrafficLight
 
 class TLClassifier(object):
     def __init__(self):
-        #TODO load classifier
+        self.session = None
         pass
 
     def get_classification(self, image):
